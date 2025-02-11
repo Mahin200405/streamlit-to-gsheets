@@ -1,15 +1,24 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 from datetime import datetime
 
+# Google Sheets Authentication
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["connections"]["gsheets"], scope)
+client = gspread.authorize(creds)
 
-conn = st.connection("gsheets", type=GSheetsConnection)
+# Open the Google Sheet
+spreadsheet = client.open_by_key(st.secrets["connections"]["gsheets"]["spreadsheet"])
+worksheet = spreadsheet.worksheet("Example 1")
 
 def load_data():
-    return conn.read(spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], worksheet="Example 1")
+    """Fetch data from Google Sheets and return as a pandas DataFrame"""
+    data = worksheet.get_all_records()
+    return pd.DataFrame(data)
 
-df = load_data()  
+df = load_data()
 
 password = "BITS DUBAI"
 
@@ -22,21 +31,21 @@ def sync_with_gsheets(teamname):
     df = load_data()  # Reload latest data
 
     if teamname in df["Teamname"].values:
-        # Update existing team record
-        df.loc[df["Teamname"] == teamname, "No of tries"] = st.session_state["teams"][teamname]["No of tries"]
-        df.loc[df["Teamname"] == teamname, "Answered correctly?"] = st.session_state["teams"][teamname]["Answered correctly?"]
-        df.loc[df["Teamname"] == teamname, "Time"] = st.session_state["teams"][teamname]["Time"]
+        index = df[df["Teamname"] == teamname].index[0]
+        df.at[index, "No of tries"] = st.session_state["teams"][teamname]["No of tries"]
+        df.at[index, "Answered correctly?"] = st.session_state["teams"][teamname]["Answered correctly?"]
+        df.at[index, "Time"] = st.session_state["teams"][teamname]["Time"]
     else:
-        # Append new team
         new_row = pd.DataFrame([{
             "Teamname": teamname, 
             "No of tries": st.session_state["teams"][teamname]["No of tries"], 
             "Answered correctly?": st.session_state["teams"][teamname]["Answered correctly?"], 
             "Time": st.session_state["teams"][teamname]["Time"]
         }])
-        df = pd.concat([df, new_row], ignore_index=True)  # Append without replacing
+        df = pd.concat([df, new_row], ignore_index=True)
 
-    conn.update(worksheet="Example 1", data=df)
+    worksheet.clear()  # Clear the sheet before updating
+    worksheet.update([df.columns.values.tolist()] + df.values.tolist())  # Update the Google Sheet
 
 def give_tries():
     """Manage the password attempts for a given team"""
@@ -93,11 +102,10 @@ def give_tries():
         st.error("❌ No more attempts left!")
 
 def write_new(teamname):
-    #Check if the team exists, and only add if necessary
-    df = load_data()  # Reload latest data
+    """Check if the team exists, and only add if necessary"""
+    df = load_data()
 
     if teamname in df["Teamname"].values:
-        # Load existing team data
         team_data = df[df["Teamname"] == teamname].iloc[0].to_dict()
         st.session_state["teams"][teamname] = {
             "No of tries": team_data["No of tries"],
@@ -109,14 +117,12 @@ def write_new(teamname):
         st.info(f"🔄 Loaded existing team '{teamname}' with {st.session_state['tries']} attempts left.")
         give_tries()
     else:
-
         st.session_state["teams"][teamname] = {"No of tries": 3, "Answered correctly?": "", "Time": ""}
-        sync_with_gsheets(teamname)  # Sync only this team with Google Sheets
+        sync_with_gsheets(teamname)  
         st.success(f"✅ Team '{teamname}' registered successfully!")
         st.session_state["teamname"] = teamname
         st.session_state["tries"] = 3
         give_tries()
-
 
 st.title("Competition Page")
 
