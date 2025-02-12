@@ -94,7 +94,7 @@ def give_tries():
                     if st.session_state["tries"] > 0:
                         st.error(f"❌ Incorrect! You have {st.session_state['tries']} attempts left.")
                     else:
-                        st.error("❌ You have run out of attempts! Answer marked as 'No'.")
+                        st.error("❌ You have run out of attempts! Please try again in the next slot...")
     
     elif team_data["Answered correctly?"] == "Yes":
         st.success(f"✅ You have already answered correctly at **{team_data.get('Time', 'Unknown Time')}**.")
@@ -124,7 +124,8 @@ def write_new(teamname):
         st.session_state["tries"] = 3
         give_tries()
 
-st.title("Competition Page")
+st.title("AOEE X OhCrop!")
+st.header("WATT A HUNT")
 
 if "teamname" not in st.session_state:
     teamname = st.text_input("Enter your team name:")
