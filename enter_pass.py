@@ -20,7 +20,7 @@ def load_data():
 
 df = load_data()
 
-password = "1782"
+password = "1253"
 
 # Initialize session state for teams
 if "teams" not in st.session_state:
